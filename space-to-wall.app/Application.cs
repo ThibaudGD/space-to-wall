@@ -1,5 +1,6 @@
 using Autodesk.Revit.UI;
 using Revit.Async;
+using space_to_wall.app.Handlers;
 using System;
 
 namespace space_to_wall.app
@@ -54,7 +55,7 @@ namespace space_to_wall.app
                 "CreatePaintWalls",
                 "Créer Murs\nde Peinture",
                 typeof(Application).Assembly.Location,
-                "space_to_wall.app.CreatePaintWallsCommand");
+                "space_to_wall.app.Commands.CreatePaintWallsCommand");
             
             PushButton createButton = panel.AddItem(createButtonData) as PushButton;
             createButton.ToolTip = "Crée automatiquement des murs de peinture (5mm) pour toutes les pièces";
@@ -64,7 +65,7 @@ namespace space_to_wall.app
                 "DeletePaintWalls",
                 "Supprimer Murs\nde Peinture",
                 typeof(Application).Assembly.Location,
-                "space_to_wall.app.DeletePaintWallsCommand");
+                "space_to_wall.app.Commands.DeletePaintWallsCommand");
             
             PushButton deleteButton = panel.AddItem(deleteButtonData) as PushButton;
             deleteButton.ToolTip = "Supprime tous les murs de peinture générés";

@@ -2,13 +2,15 @@ using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Revit.Async;
+using space_to_wall.app.Handlers;
+using space_to_wall.app.Models;
 using System;
 
-namespace space_to_wall.app
+namespace space_to_wall.app.Commands
 {
     [Transaction(TransactionMode.Manual)]
     [Regeneration(RegenerationOption.Manual)]
-    public class CreatePaintWallsCommand : IExternalCommand
+    public class DeletePaintWallsCommand : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
@@ -31,8 +33,8 @@ namespace space_to_wall.app
             try
             {
                 // Appel du handler enregistré avec RevitTask.RaiseGlobal
-                var result = await RevitTask.RaiseGlobal<CreatePaintWallsHandler, CreatePaintWallsParameter, CreatePaintWallsResult>(
-                    new CreatePaintWallsParameter { IncludeAllRooms = true });
+                // Passer null car le handler ne nécessite pas de paramètre spécifique
+                var result = await RevitTask.RaiseGlobal<DeletePaintWallsHandler, object, DeletePaintWallsResult>(null);
 
                 // Afficher le résultat à l'utilisateur
                 if (result.Success)
@@ -41,7 +43,7 @@ namespace space_to_wall.app
                 }
                 else
                 {
-                    TaskDialog.Show("Erreur", result.Message);
+                    TaskDialog.Show("Information", result.Message);
                 }
             }
             catch (Exception ex)
