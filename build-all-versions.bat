@@ -60,7 +60,7 @@ for %%V in (%VERSIONS%) do (
     mkdir "!TEMP_DIR!"
     
     REM Utiliser directement le dossier de build (bin\Release\net48)
-    set SOURCE_DIR=space-to-wall.app\bin\Release\net48
+    set SOURCE_DIR=space-to-wall.app\bin\Release\%%V
     
     REM Vérifier si les fichiers existent
     if not exist "!SOURCE_DIR!\space_to_wall.app.dll" (
