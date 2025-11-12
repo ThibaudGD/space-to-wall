@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 
 namespace SpaceToWall.Installer
 {
@@ -18,38 +20,116 @@ namespace SpaceToWall.Installer
 
             try
             {
-                // Déterminer le chemin du zip
-                string zipPath = DetermineZipPath(args);
+                // Détecter les versions Revit disponibles dans les ressources embarquées
+                var embeddedVersions = GetEmbeddedVersions();
                 
-                if (string.IsNullOrEmpty(zipPath) || !File.Exists(zipPath))
+                if (embeddedVersions.Count == 0)
                 {
-                    Console.WriteLine("Erreur: Fichier ZIP introuvable.");
+                    Console.WriteLine("ERREUR: Aucune version embarquee trouvee.");
+                    Console.WriteLine("L'installateur doit etre recompile avec les ZIP embarques.");
                     Console.WriteLine();
-                    Console.WriteLine("Usage:");
-                    Console.WriteLine("  space-to-wall.installer.exe [chemin-vers-zip]");
-                    Console.WriteLine("  ou placez le ZIP dans le même dossier que l'installateur");
-                    Console.WriteLine();
+                    Console.WriteLine("Appuyez sur une touche pour quitter...");
+                    Console.ReadKey();
                     Environment.Exit(1);
                 }
 
-                Console.WriteLine($"Fichier trouvé: {Path.GetFileName(zipPath)}");
+                Console.WriteLine("Versions Revit disponibles dans cet installateur:");
+                foreach (var version in embeddedVersions)
+                {
+                    Console.WriteLine($"  - Revit {version}");
+                }
                 Console.WriteLine();
 
-                // Déterminer la version de Revit à partir du nom du zip ou demander
-                string revitVersion = DetermineRevitVersion(zipPath);
+                // Détecter les versions Revit installées sur le système
+                var installedVersions = DetectInstalledRevitVersions();
                 
-                Console.WriteLine($"Version Revit cible: {revitVersion}");
+                if (installedVersions.Count == 0)
+                {
+                    Console.WriteLine("ATTENTION: Aucune installation Revit detectee sur ce systeme.");
+                    Console.WriteLine();
+                    Console.Write("Voulez-vous continuer quand meme ? (o/N): ");
+                    var response = Console.ReadLine()?.ToLower();
+                    if (response != "o" && response != "oui")
+                    {
+                        Console.WriteLine("Installation annulee.");
+                        Environment.Exit(0);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Versions Revit detectees sur votre systeme:");
+                    foreach (var version in installedVersions)
+                    {
+                        Console.WriteLine($"  - Revit {version}");
+                    }
+                    Console.WriteLine();
+                }
+
+                // Déterminer quelles versions installer
+                var versionsToInstall = DetermineVersionsToInstall(embeddedVersions, installedVersions);
+                
+                if (versionsToInstall.Count == 0)
+                {
+                    Console.WriteLine("Aucune version a installer.");
+                    Console.WriteLine();
+                    Console.WriteLine("Appuyez sur une touche pour quitter...");
+                    Console.ReadKey();
+                    Environment.Exit(0);
+                }
+
+                Console.WriteLine("Versions qui seront installees:");
+                foreach (var version in versionsToInstall)
+                {
+                    Console.WriteLine($"  - Revit {version}");
+                }
                 Console.WriteLine();
 
-                // Installer
-                InstallAddin(zipPath, revitVersion);
+                Console.Write("Continuer l'installation ? (O/n): ");
+                var confirm = Console.ReadLine()?.ToLower();
+                if (confirm == "n" || confirm == "non")
+                {
+                    Console.WriteLine("Installation annulee.");
+                    Environment.Exit(0);
+                }
 
                 Console.WriteLine();
                 Console.WriteLine("===========================================");
-                Console.WriteLine("Installation terminée avec succès !");
+                Console.WriteLine("Installation en cours...");
                 Console.WriteLine("===========================================");
                 Console.WriteLine();
-                Console.WriteLine("Redémarrez Revit pour voir l'extension.");
+
+                // Installer chaque version
+                int successCount = 0;
+                int errorCount = 0;
+
+                foreach (var version in versionsToInstall)
+                {
+                    try
+                    {
+                        Console.WriteLine($"Installation pour Revit {version}...");
+                        InstallVersion(version);
+                        Console.WriteLine($"  [OK] Revit {version} installe avec succes");
+                        successCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"  [ERREUR] Revit {version}: {ex.Message}");
+                        errorCount++;
+                    }
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("===========================================");
+                Console.WriteLine("Installation terminee !");
+                Console.WriteLine("===========================================");
+                Console.WriteLine();
+                Console.WriteLine($"Succes: {successCount} version(s)");
+                if (errorCount > 0)
+                {
+                    Console.WriteLine($"Erreurs: {errorCount} version(s)");
+                }
+                Console.WriteLine();
+                Console.WriteLine("Redemarrez Revit pour voir l'extension.");
                 Console.WriteLine();
                 Console.WriteLine("Appuyez sur une touche pour quitter...");
                 Console.ReadKey();
@@ -57,7 +137,7 @@ namespace SpaceToWall.Installer
             catch (Exception ex)
             {
                 Console.WriteLine();
-                Console.WriteLine($"ERREUR: {ex.Message}");
+                Console.WriteLine($"ERREUR FATALE: {ex.Message}");
                 Console.WriteLine();
                 Console.WriteLine("Appuyez sur une touche pour quitter...");
                 Console.ReadKey();
@@ -65,193 +145,227 @@ namespace SpaceToWall.Installer
             }
         }
 
-        static string DetermineZipPath(string[] args)
+        static List<string> GetEmbeddedVersions()
         {
-            // 1. Vérifier si un chemin a été fourni en argument
-            if (args.Length > 0 && File.Exists(args[0]))
+            var versions = new List<string>();
+            var assembly = Assembly.GetExecutingAssembly();
+            var resourceNames = assembly.GetManifestResourceNames();
+
+            foreach (var resourceName in resourceNames)
             {
-                return args[0];
-            }
-
-            // 2. Chercher dans le répertoire courant
-            string currentDir = Directory.GetCurrentDirectory();
-            var zipFiles = Directory.GetFiles(currentDir, $"{ADDIN_NAME}*.zip");
-            
-            if (zipFiles.Length > 0)
-            {
-                // Prendre le plus récent
-                return zipFiles.OrderByDescending(f => File.GetLastWriteTime(f)).First();
-            }
-
-            // 3. Chercher dans le répertoire de l'exécutable
-            string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            zipFiles = Directory.GetFiles(exeDir, $"{ADDIN_NAME}*.zip");
-            
-            if (zipFiles.Length > 0)
-            {
-                return zipFiles.OrderByDescending(f => File.GetLastWriteTime(f)).First();
-            }
-
-            return null;
-        }
-
-        static string DetermineRevitVersion(string zipPath)
-        {
-            // Essayer de détecter la version depuis le nom du fichier
-            string fileName = Path.GetFileNameWithoutExtension(zipPath);
-            
-            if (fileName.Contains("2023"))
-                return "2023";
-            if (fileName.Contains("2024"))
-                return "2024";
-            if (fileName.Contains("2025"))
-                return "2025";
-
-            // Si pas trouvé, demander à l'utilisateur
-            Console.WriteLine("Versions Revit disponibles:");
-            Console.WriteLine("  1. Revit 2023");
-            Console.WriteLine("  2. Revit 2024");
-            Console.WriteLine("  3. Revit 2025");
-            Console.WriteLine();
-            Console.Write("Choisissez la version (1-3): ");
-            
-            string choice = Console.ReadLine();
-            
-            return choice switch
-            {
-                "1" => "2023",
-                "2" => "2024",
-                "3" => "2025",
-                _ => "2023" // Par défaut
-            };
-        }
-
-        static void InstallAddin(string zipPath, string revitVersion)
-        {
-            // Déterminer le dossier Addins de Revit
-            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string addinsPath = Path.Combine(appDataPath, "Autodesk", "Revit", "Addins", revitVersion);
-
-            // Créer le dossier s'il n'existe pas
-            if (!Directory.Exists(addinsPath))
-            {
-                Console.WriteLine($"Création du dossier: {addinsPath}");
-                Directory.CreateDirectory(addinsPath);
-            }
-
-            Console.WriteLine($"Dossier d'installation: {addinsPath}");
-            Console.WriteLine();
-
-            // Créer un dossier temporaire pour extraire
-            string tempPath = Path.Combine(Path.GetTempPath(), $"{ADDIN_NAME}_temp_{Guid.NewGuid()}");
-            Directory.CreateDirectory(tempPath);
-
-            try
-            {
-                Console.WriteLine("Extraction du contenu...");
-                ZipFile.ExtractToDirectory(zipPath, tempPath);
-
-                // Trouver le dossier contenant les fichiers (peut être dans un sous-dossier)
-                string sourcePath = FindSourceFolder(tempPath, revitVersion);
-
-                if (string.IsNullOrEmpty(sourcePath))
+                // Format attendu: space_to_wall.installer.Resources.space_to_wall.app_2023.zip
+                if (resourceName.Contains($"{ADDIN_NAME}_") && resourceName.EndsWith(".zip"))
                 {
-                    throw new Exception($"Impossible de trouver les fichiers pour Revit {revitVersion} dans le ZIP");
+                    // Extraire la version (2023, 2024, etc.)
+                    var parts = resourceName.Split('_');
+                    var versionPart = parts.LastOrDefault()?.Replace(".zip", "");
+                    
+                    if (!string.IsNullOrEmpty(versionPart) && int.TryParse(versionPart, out _))
+                    {
+                        versions.Add(versionPart);
+                    }
                 }
+            }
 
-                // Copier le fichier .addin
-                string addinFile = Path.Combine(sourcePath, $"{ADDIN_NAME}.addin");
-                if (File.Exists(addinFile))
+            versions.Sort();
+            return versions;
+        }
+
+        static List<string> DetectInstalledRevitVersions()
+        {
+            var versions = new List<string>();
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string addinsBasePath = Path.Combine(appDataPath, "Autodesk", "Revit", "Addins");
+
+            if (Directory.Exists(addinsBasePath))
+            {
+                var yearDirs = Directory.GetDirectories(addinsBasePath)
+                    .Select(d => Path.GetFileName(d))
+                    .Where(d => int.TryParse(d, out int year) && year >= 2020 && year <= 2030)
+                    .OrderBy(d => d);
+
+                versions.AddRange(yearDirs);
+            }
+
+            return versions;
+        }
+
+        static List<string> DetermineVersionsToInstall(List<string> embeddedVersions, List<string> installedVersions)
+        {
+            if (installedVersions.Count == 0)
+            {
+                // Si aucune version Revit détectée, proposer toutes les versions embarquées
+                Console.WriteLine("Selection des versions a installer:");
+                Console.WriteLine("  1. Installer toutes les versions disponibles");
+                Console.WriteLine("  2. Choisir manuellement");
+                Console.WriteLine();
+                Console.Write("Choix (1-2): ");
+                
+                var choice = Console.ReadLine();
+                
+                if (choice == "1")
                 {
-                    string destAddin = Path.Combine(addinsPath, $"{ADDIN_NAME}.addin");
-                    Console.WriteLine($"Installation: {Path.GetFileName(addinFile)}");
-                    File.Copy(addinFile, destAddin, true);
+                    return embeddedVersions;
+                }
+                else if (choice == "2")
+                {
+                    return SelectVersionsManually(embeddedVersions);
                 }
                 else
                 {
-                    throw new Exception($"Fichier .addin introuvable: {addinFile}");
+                    return embeddedVersions; // Par défaut, tout installer
                 }
+            }
 
-                // Copier la DLL et ses dépendances dans un sous-dossier
-                string targetFolder = Path.Combine(addinsPath, ADDIN_NAME);
-                if (Directory.Exists(targetFolder))
+            // Installer uniquement les versions Revit détectées qui ont un ZIP embarqué
+            var versionsToInstall = embeddedVersions.Intersect(installedVersions).ToList();
+            
+            if (versionsToInstall.Count < embeddedVersions.Count)
+            {
+                var missingVersions = embeddedVersions.Except(versionsToInstall).ToList();
+                if (missingVersions.Count > 0)
                 {
-                    Console.WriteLine($"Suppression de l'ancienne version...");
-                    Directory.Delete(targetFolder, true);
+                    Console.WriteLine($"Note: Versions disponibles mais non detectees: {string.Join(", ", missingVersions)}");
+                    Console.Write("Voulez-vous les installer quand meme ? (o/N): ");
+                    var response = Console.ReadLine()?.ToLower();
+                    if (response == "o" || response == "oui")
+                    {
+                        versionsToInstall.AddRange(missingVersions);
+                    }
+                    Console.WriteLine();
                 }
+            }
 
-                Console.WriteLine($"Création du dossier: {targetFolder}");
-                Directory.CreateDirectory(targetFolder);
+            return versionsToInstall;
+        }
 
-                // Copier tous les fichiers .dll, .pdb, .config
-                var filesToCopy = Directory.GetFiles(sourcePath, "*.*")
-                    .Where(f => f.EndsWith(".dll") || f.EndsWith(".pdb") || f.EndsWith(".config"));
-
-                foreach (var file in filesToCopy)
+        static List<string> SelectVersionsManually(List<string> availableVersions)
+        {
+            var selected = new List<string>();
+            Console.WriteLine();
+            
+            foreach (var version in availableVersions)
+            {
+                Console.Write($"Installer Revit {version} ? (O/n): ");
+                var response = Console.ReadLine()?.ToLower();
+                if (response != "n" && response != "non")
                 {
-                    string fileName = Path.GetFileName(file);
-                    string destFile = Path.Combine(targetFolder, fileName);
-                    Console.WriteLine($"  Copie: {fileName}");
-                    File.Copy(file, destFile, true);
+                    selected.Add(version);
+                }
+            }
+            
+            Console.WriteLine();
+            return selected;
+        }
+
+        static void InstallVersion(string version)
+        {
+            // Extraire le ZIP depuis les ressources embarquées
+            string tempZipPath = ExtractEmbeddedZip(version);
+
+            try
+            {
+                // Déterminer le dossier Addins de Revit
+                string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                string addinsPath = Path.Combine(appDataPath, "Autodesk", "Revit", "Addins", version);
+
+                // Créer le dossier s'il n'existe pas
+                if (!Directory.Exists(addinsPath))
+                {
+                    Directory.CreateDirectory(addinsPath);
                 }
 
-                Console.WriteLine();
-                Console.WriteLine($"✓ {filesToCopy.Count()} fichiers installés");
+                // Créer un dossier temporaire pour extraire
+                string tempExtractPath = Path.Combine(Path.GetTempPath(), $"{ADDIN_NAME}_extract_{Guid.NewGuid()}");
+                Directory.CreateDirectory(tempExtractPath);
+
+                try
+                {
+                    // Extraire le ZIP
+                    ZipFile.ExtractToDirectory(tempZipPath, tempExtractPath);
+
+                    // Copier le fichier .addin
+                    string addinFile = Path.Combine(tempExtractPath, $"{ADDIN_NAME}.addin");
+                    if (File.Exists(addinFile))
+                    {
+                        string destAddin = Path.Combine(addinsPath, $"{ADDIN_NAME}.addin");
+                        File.Copy(addinFile, destAddin, true);
+                    }
+                    else
+                    {
+                        throw new Exception($"Fichier .addin introuvable dans le ZIP");
+                    }
+
+                    // Copier la DLL et ses dépendances dans un sous-dossier
+                    string targetFolder = Path.Combine(addinsPath, ADDIN_NAME);
+                    if (Directory.Exists(targetFolder))
+                    {
+                        Directory.Delete(targetFolder, true);
+                    }
+                    Directory.CreateDirectory(targetFolder);
+
+                    // Copier tous les fichiers .dll, .pdb, .config
+                    var filesToCopy = Directory.GetFiles(tempExtractPath)
+                        .Where(f => f.EndsWith(".dll") || f.EndsWith(".pdb") || f.EndsWith(".config"));
+
+                    foreach (var file in filesToCopy)
+                    {
+                        string fileName = Path.GetFileName(file);
+                        string destFile = Path.Combine(targetFolder, fileName);
+                        File.Copy(file, destFile, true);
+                    }
+                }
+                finally
+                {
+                    // Nettoyer le dossier temporaire d'extraction
+                    if (Directory.Exists(tempExtractPath))
+                    {
+                        try
+                        {
+                            Directory.Delete(tempExtractPath, true);
+                        }
+                        catch { }
+                    }
+                }
             }
             finally
             {
-                // Nettoyer le dossier temporaire
-                if (Directory.Exists(tempPath))
+                // Nettoyer le ZIP temporaire
+                if (File.Exists(tempZipPath))
                 {
                     try
                     {
-                        Directory.Delete(tempPath, true);
+                        File.Delete(tempZipPath);
                     }
-                    catch
-                    {
-                        // Ignorer les erreurs de nettoyage
-                    }
+                    catch { }
                 }
             }
         }
 
-        static string FindSourceFolder(string extractPath, string revitVersion)
+        static string ExtractEmbeddedZip(string version)
         {
-            // Chercher le dossier qui contient les fichiers compilés pour la version de Revit
-            // Format attendu: extractPath/2023/ ou extractPath/bin/Debug/2023/ etc.
+            var assembly = Assembly.GetExecutingAssembly();
+            var resourceName = assembly.GetManifestResourceNames()
+                .FirstOrDefault(r => r.Contains($"{ADDIN_NAME}_{version}.zip"));
 
-            // 1. Vérifier directement dans extractPath
-            if (ContainsAddinFiles(extractPath))
-                return extractPath;
-
-            // 2. Chercher un dossier avec le numéro de version
-            string versionFolder = Path.Combine(extractPath, revitVersion);
-            if (Directory.Exists(versionFolder) && ContainsAddinFiles(versionFolder))
-                return versionFolder;
-
-            // 3. Chercher récursivement (max 3 niveaux)
-            var allDirs = Directory.GetDirectories(extractPath, revitVersion, SearchOption.AllDirectories);
-            foreach (var dir in allDirs)
+            if (string.IsNullOrEmpty(resourceName))
             {
-                if (ContainsAddinFiles(dir))
-                    return dir;
+                throw new Exception($"ZIP pour la version {version} introuvable dans les ressources embarquees");
             }
 
-            // 4. Si toujours pas trouvé, chercher le premier dossier qui contient un .addin
-            var addinFiles = Directory.GetFiles(extractPath, "*.addin", SearchOption.AllDirectories);
-            if (addinFiles.Length > 0)
+            string tempZipPath = Path.Combine(Path.GetTempPath(), $"{ADDIN_NAME}_{version}_{Guid.NewGuid()}.zip");
+
+            using (Stream resourceStream = assembly.GetManifestResourceStream(resourceName))
+            using (FileStream fileStream = File.Create(tempZipPath))
             {
-                return Path.GetDirectoryName(addinFiles[0]);
+                if (resourceStream == null)
+                {
+                    throw new Exception($"Impossible de lire la ressource {resourceName}");
+                }
+                resourceStream.CopyTo(fileStream);
             }
 
-            return null;
-        }
-
-        static bool ContainsAddinFiles(string path)
-        {
-            // Vérifier si le dossier contient les fichiers essentiels
-            return File.Exists(Path.Combine(path, $"{ADDIN_NAME}.addin")) &&
-                   File.Exists(Path.Combine(path, $"{ADDIN_NAME}.dll"));
+            return tempZipPath;
         }
     }
 }

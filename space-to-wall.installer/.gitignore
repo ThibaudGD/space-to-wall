@@ -3,3 +3,6 @@ obj/
 *.user
 *.suo
 .vs/
+
+# Les ZIP sont générés lors du build
+Resources/*.zip

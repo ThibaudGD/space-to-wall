@@ -50,20 +50,24 @@ space-to-wall/
 
 ### Pour les utilisateurs finaux
 
-#### Méthode 1 : Installateur automatique (Recommandée)
+#### Installateur automatique (Recommandée)
 
-1. Téléchargez le package d'installation `space-to-wall-installer.zip`
-2. Extrayez le contenu
-3. Double-cliquez sur `install.bat`
-4. Suivez les instructions
+1. Téléchargez `space-to-wall.installer.exe`
+2. Double-cliquez sur l'exécutable
+3. L'installateur va :
+   - Détecter automatiquement les versions Revit installées sur votre système
+   - Proposer d'installer les versions correspondantes (2023, 2024, 2025)
+   - Copier les fichiers vers `%AppData%\Autodesk\Revit\Addins\{version}`
+4. Suivez les instructions à l'écran
 5. Redémarrez Revit
 
-L'installateur va :
-- Détecter automatiquement la version Revit depuis le fichier ZIP
-- Copier les fichiers vers `%AppData%\Autodesk\Revit\Addins\{version}`
-- Configurer le manifest automatiquement
+**Avantages :**
+- ✅ Un seul fichier .exe à télécharger (toutes les versions embarquées)
+- ✅ Détection automatique des versions Revit installées
+- ✅ Installation multi-version en une seule opération
+- ✅ Pas de fichiers ZIP à gérer manuellement
 
-#### Méthode 2 : Installation manuelle depuis ZIP
+#### Installation manuelle depuis ZIP
 
 Voir la section [Installation manuelle](#installation-manuelle) ci-dessous.
 
@@ -153,31 +157,34 @@ Les murs de peinture créés contiennent les paramètres suivants :
 
 ## Distribution
 
-### Créer un package d'installation pour les utilisateurs
+### Créer l'installateur autonome pour les utilisateurs
 
-1. Compilez l'extension pour la version Revit souhaitée :
-   ```batch
-   deploy.bat 2023
-   ```
+Un seul script fait tout le travail :
 
-2. Créez un ZIP avec les fichiers compilés depuis `%AppData%\Autodesk\Revit\Addins\2023\`
+```batch
+build-all-versions.bat
+```
 
-3. Créez le package de l'installateur :
-   ```batch
-   build-installer-package.bat
-   ```
+Ce script va :
+1. ✅ Compiler l'extension pour Revit 2023, 2024 et 2025
+2. ✅ Créer les ZIP pour chaque version
+3. ✅ Embarquer tous les ZIP dans l'installateur
+4. ✅ Compiler l'installateur en un exécutable unique autonome
 
-4. Placez le ZIP de l'extension dans le dossier `installer-package/`
+Le fichier final à distribuer :
+```
+build-output\installer\space-to-wall.installer.exe
+```
 
-5. Compressez le dossier `installer-package/` en ZIP
+**C'est tout !** Un seul fichier .exe contenant toutes les versions Revit.
 
-6. Distribuez le ZIP final aux utilisateurs
+### Avantages de cette approche
 
-Le package contiendra :
-- `space-to-wall.installer.exe` - L'installateur CLI
-- `install.bat` - Script d'installation rapide
-- `README.md` - Documentation
-- Votre fichier ZIP de l'extension
+- ✅ **Distribution simplifiée** : Un seul .exe à distribuer
+- ✅ **Pas de fichiers manquants** : Les ZIP sont embarqués
+- ✅ **Installation intelligente** : Détection automatique des versions Revit
+- ✅ **Expérience utilisateur optimale** : Aucune manipulation de fichiers ZIP
+- ✅ **Installation offline** : Fonctionne sans connexion Internet
 
 ## Développement
 
