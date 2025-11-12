@@ -21,20 +21,55 @@ Le projet utilise :
 
 ```
 space-to-wall/
-├── space-to-wall.app/
-│   ├── PaintWallHandlers.cs          # Handlers Revit.Async personnalisés
+├── space-to-wall.app/                # Extension Revit principale
+│   ├── Commands/                     # Commandes Revit (UI entry points)
+│   │   ├── CreatePaintWallsCommand.cs
+│   │   └── DeletePaintWallsCommand.cs
+│   ├── Handlers/                     # Handlers async (business logic)
+│   │   ├── CreatePaintWallsHandler.cs
+│   │   └── DeletePaintWallsHandler.cs
+│   ├── Models/                       # DTOs et modèles de données
+│   │   ├── CreatePaintWallsParameter.cs
+│   │   ├── CreatePaintWallsResult.cs
+│   │   └── DeletePaintWallsResult.cs
+│   ├── Properties/
 │   ├── Application.cs                # Point d'entrée + enregistrement des handlers
-│   ├── CreatePaintWallsCommand.cs    # Commande pour créer les murs
-│   ├── DeletePaintWallsCommand.cs    # Commande pour supprimer les murs
 │   ├── SpaceToWall.addin             # Manifest template
 │   └── space-to-wall.app.csproj      # Fichier de projet SDK-style
-├── deploy.bat                        # Script de déploiement
+├── space-to-wall.installer/          # Application CLI pour installation
+│   ├── Program.cs                    # Logique d'installation
+│   ├── install.bat                   # Script batch d'installation
+│   ├── README.md                     # Documentation de l'installateur
+│   └── space-to-wall.installer.csproj
+├── build-installer-package.bat       # Script pour créer le package complet
+├── deploy.bat                        # Script de déploiement développeur
 └── README.md
 ```
 
 ## Installation
 
-### Méthode rapide (Recommandée)
+### Pour les utilisateurs finaux
+
+#### Méthode 1 : Installateur automatique (Recommandée)
+
+1. Téléchargez le package d'installation `space-to-wall-installer.zip`
+2. Extrayez le contenu
+3. Double-cliquez sur `install.bat`
+4. Suivez les instructions
+5. Redémarrez Revit
+
+L'installateur va :
+- Détecter automatiquement la version Revit depuis le fichier ZIP
+- Copier les fichiers vers `%AppData%\Autodesk\Revit\Addins\{version}`
+- Configurer le manifest automatiquement
+
+#### Méthode 2 : Installation manuelle depuis ZIP
+
+Voir la section [Installation manuelle](#installation-manuelle) ci-dessous.
+
+### Pour les développeurs
+
+#### Méthode rapide (Recommandée)
 
 **Sur Windows**, utilisez le script de déploiement :
 
@@ -115,6 +150,34 @@ Les murs de peinture créés contiennent les paramètres suivants :
 - **Commentaires** : "Mur de peinture généré automatiquement"
 
 > **Note** : Pour utiliser les paramètres personnalisés, vous devez les créer dans votre fichier de paramètres partagés ou décommenter la section `EnsureSharedParametersExist()` dans `PaintWallCreator.cs`
+
+## Distribution
+
+### Créer un package d'installation pour les utilisateurs
+
+1. Compilez l'extension pour la version Revit souhaitée :
+   ```batch
+   deploy.bat 2023
+   ```
+
+2. Créez un ZIP avec les fichiers compilés depuis `%AppData%\Autodesk\Revit\Addins\2023\`
+
+3. Créez le package de l'installateur :
+   ```batch
+   build-installer-package.bat
+   ```
+
+4. Placez le ZIP de l'extension dans le dossier `installer-package/`
+
+5. Compressez le dossier `installer-package/` en ZIP
+
+6. Distribuez le ZIP final aux utilisateurs
+
+Le package contiendra :
+- `space-to-wall.installer.exe` - L'installateur CLI
+- `install.bat` - Script d'installation rapide
+- `README.md` - Documentation
+- Votre fichier ZIP de l'extension
 
 ## Développement
 

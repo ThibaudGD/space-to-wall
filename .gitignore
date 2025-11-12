@@ -448,3 +448,6 @@ Temporary Items
 ## Ignore deployed .addin files
 *.addin
 !**/space-to-wall.app/SpaceToWall.addin
+
+## Installer package output
+installer-package/
