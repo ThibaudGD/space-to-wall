@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Space to Wall - Paint Wall Creator</Name>
+    <Assembly>space_to_wall.app.dll</Assembly>
+    <FullClassName>space_to_wall.app.Application</FullClassName>
+    <ClientId>b231b554-1ed1-44a2-b6ae-5768e27e480b</ClientId>
+    <VendorId>SpaceToWall</VendorId>
+    <VendorDescription>Space to Wall - Automatic Paint Wall Generator</VendorDescription>
+  </AddIn>
+</RevitAddIns>
