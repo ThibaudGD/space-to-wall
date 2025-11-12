@@ -7,15 +7,15 @@ Extension Revit pour créer automatiquement des murs de peinture (5mm d'épaisse
 - **Création automatique de murs de peinture** : Génère des murs de 5mm d'épaisseur le long des contours de toutes les pièces
 - **Paramètres personnalisés** : Les murs créés contiennent des informations sur la pièce (nom, numéro, finition)
 - **Traitement asynchrone** : Utilise Revit.Async avec handlers personnalisés pour une exécution fluide
-- **Support multi-version** : Compatible Revit 2023, 2024 et 2025
+- **Support multi-version** : Compatible Revit 2022, 2023 et 2024
 - **Gestion facile** : Boutons dans le ruban Revit pour créer et supprimer les murs de peinture
 
 ## Architecture
 
 Le projet utilise :
-- **Autodesk Revit SDK** : Support des versions 2023, 2024, 2025
+- **Autodesk Revit SDK** : Support des versions 2022, 2023, 2024
 - **Revit.Async v2.1.1** : Exécution asynchrone avec pattern "Define Your Own Handler"
-- **.NET Framework 4.8** (Revit 2023-2024) ou **.NET 8** (Revit 2025)
+- **.NET Framework 4.8** (Revit 2022-2024)
 
 ### Structure du projet
 
@@ -56,8 +56,9 @@ space-to-wall/
 2. Double-cliquez sur l'exécutable
 3. L'installateur va :
    - Détecter automatiquement les versions Revit installées sur votre système
-   - Proposer d'installer les versions correspondantes (2023, 2024, 2025)
-   - Copier les fichiers vers `%AppData%\Autodesk\Revit\Addins\{version}`
+   - Proposer d'installer les versions correspondantes (2022, 2023, 2024)
+   - Copier les fichiers `.addin` dans `%AppData%\Autodesk\Revit\Addins\{version}`
+   - Copier les DLL dans `%AppData%\Autodesk\ApplicationPlugins\SpaceToWall\{version}`
 4. Suivez les instructions à l'écran
 5. Redémarrez Revit
 
@@ -166,10 +167,15 @@ build-all-versions.bat
 ```
 
 Ce script va :
-1. ✅ Compiler l'extension pour Revit 2023, 2024 et 2025
-2. ✅ Créer les ZIP pour chaque version
-3. ✅ Embarquer tous les ZIP dans l'installateur
+1. ✅ Compiler l'extension pour Revit 2022, 2023 et 2024
+2. ✅ Créer les ZIP pour chaque version (DLL uniquement)
+3. ✅ Embarquer les ZIP et le template .addin dans l'installateur
 4. ✅ Compiler l'installateur en un exécutable unique autonome
+
+L'installateur gère automatiquement :
+- ✅ Installation des DLL dans `ApplicationPlugins\SpaceToWall\{version}`
+- ✅ Copie du fichier `.addin` personnalisé par version dans `Revit\Addins\{version}`
+- ✅ Remplacement de `{VERSIONS}` par la version appropriée dans chaque .addin
 
 Le fichier final à distribuer :
 ```

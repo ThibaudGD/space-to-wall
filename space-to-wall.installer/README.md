@@ -36,29 +36,45 @@ L'installateur offre plusieurs options selon votre configuration :
 
 ## Emplacement d'installation
 
-Les fichiers sont installés dans :
+Les fichiers sont installés selon la structure recommandée par Autodesk :
+
+### Fichier .addin
 ```
 %AppData%\Autodesk\Revit\Addins\{version}\
-├── space_to_wall.app.addin
-└── space_to_wall.app\
-    ├── space_to_wall.app.dll
-    ├── Revit.Async.dll
-    └── ... (autres dépendances)
+└── SpaceToWall.addin
 ```
+
+### Fichiers binaires (DLL)
+```
+%AppData%\Autodesk\ApplicationPlugins\SpaceToWall\{version}\
+├── space_to_wall.app.dll
+├── Revit.Async.dll
+└── ... (autres dépendances)
+```
+
+Cette structure permet :
+- ✅ Installation centralisée des binaires
+- ✅ Support multi-version sans duplication
+- ✅ Conforme aux recommandations Autodesk
+- ✅ Facilite les mises à jour
 
 ## Versions Revit supportées
 
+- ✅ Revit 2022
 - ✅ Revit 2023
 - ✅ Revit 2024
-- ✅ Revit 2025
 
 ## Désinstallation
 
-Pour désinstaller, supprimez simplement :
-- Le fichier `space_to_wall.app.addin`
-- Le dossier `space_to_wall.app`
+Pour désinstaller, supprimez :
 
-dans le répertoire Addins de Revit pour chaque version installée.
+1. Les fichiers `.addin` :
+   - `%AppData%\Autodesk\Revit\Addins\{version}\SpaceToWall.addin`
+
+2. Le dossier des binaires :
+   - `%AppData%\Autodesk\ApplicationPlugins\SpaceToWall\`
+
+Ou relancez l'installateur avec l'option de désinstallation (à venir).
 
 ## Pour les développeurs
 
@@ -70,9 +86,9 @@ dans le répertoire Addins de Revit pour chaque version installée.
    ```
 
 2. Ce script va :
-   - Compiler l'extension pour Revit 2023, 2024, 2025
-   - Créer les ZIP pour chaque version
-   - Embarquer les ZIP comme ressources dans l'installateur
+   - Compiler l'extension pour Revit 2022, 2023, 2024
+   - Créer les ZIP pour chaque version (contenant uniquement les DLL)
+   - Embarquer les ZIP et le template .addin dans l'installateur
    - Compiler l'installateur en un exécutable unique
 
 3. L'exécutable final se trouve dans :
@@ -91,9 +107,10 @@ Les ZIP sont embarqués comme `EmbeddedResource` dans le projet :
 
 Les fichiers doivent suivre le format de nommage :
 ```
+Resources\space_to_wall.app_2022.zip
 Resources\space_to_wall.app_2023.zip
 Resources\space_to_wall.app_2024.zip
-Resources\space_to_wall.app_2025.zip
+SpaceToWall.addin (template avec {VERSIONS} à remplacer)
 ```
 
 ### Compilation manuelle

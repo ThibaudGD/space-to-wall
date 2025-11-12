@@ -58,24 +58,20 @@ for %%V in (%VERSIONS%) do (
         set SOURCE_DIR=space-to-wall.app\bin\Release\%%V
     )
     
-    REM Copier le fichier .addin
-    if exist "!SOURCE_DIR!\space_to_wall.app.addin" (
-        copy "!SOURCE_DIR!\space_to_wall.app.addin" "!TEMP_DIR!\" >nul
-    )
-    
-    REM Copier tous les fichiers du dossier space_to_wall.app
+    REM Copier uniquement les DLL et fichiers binaires (pas le .addin)
+    REM Le .addin sera géré séparément par l'installateur
     if exist "!SOURCE_DIR!\space_to_wall.app\" (
-        xcopy "!SOURCE_DIR!\space_to_wall.app\*.*" "!TEMP_DIR!\" /Y /Q >nul
+        copy "!SOURCE_DIR!\space_to_wall.app\*.dll" "!TEMP_DIR!\" >nul 2>&1
+        copy "!SOURCE_DIR!\space_to_wall.app\*.pdb" "!TEMP_DIR!\" >nul 2>&1
+        copy "!SOURCE_DIR!\space_to_wall.app\*.config" "!TEMP_DIR!\" >nul 2>&1
     )
     
     REM Si pas trouvé dans AppData, copier depuis bin
     if not exist "!TEMP_DIR!\space_to_wall.app.dll" (
-        echo   Copie depuis bin\Release\%%V...
+        echo   Copie depuis bin\Release\net48...
         copy "space-to-wall.app\bin\Release\net48\*.dll" "!TEMP_DIR!\" >nul 2>&1
         copy "space-to-wall.app\bin\Release\net48\*.pdb" "!TEMP_DIR!\" >nul 2>&1
-        
-        REM Copier le fichier .addin depuis le projet
-        copy "space-to-wall.app\SpaceToWall.addin" "!TEMP_DIR!\space_to_wall.app.addin" >nul 2>&1
+        copy "space-to-wall.app\bin\Release\net48\*.config" "!TEMP_DIR!\" >nul 2>&1
     )
     
     REM Créer le ZIP
@@ -114,9 +110,9 @@ echo Build termine avec succes !
 echo ============================================
 echo.
 echo Fichiers crees:
+echo   build-output\space_to_wall.app_2022.zip
 echo   build-output\space_to_wall.app_2023.zip
 echo   build-output\space_to_wall.app_2024.zip
-echo   build-output\space_to_wall.app_2025.zip
 echo   build-output\installer\space-to-wall.installer.exe
 echo.
 echo L'installateur contient tous les ZIP embarques.

@@ -265,14 +265,23 @@ namespace SpaceToWall.Installer
 
             try
             {
-                // Déterminer le dossier Addins de Revit
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                
+                // Dossier pour le fichier .addin (dans Revit\Addins\{Version})
                 string addinsPath = Path.Combine(appDataPath, "Autodesk", "Revit", "Addins", version);
+                
+                // Dossier pour les DLL (dans ApplicationPlugins\SpaceToWall\{Version})
+                string pluginsPath = Path.Combine(appDataPath, "Autodesk", "ApplicationPlugins", "SpaceToWall", version);
 
-                // Créer le dossier s'il n'existe pas
+                // Créer les dossiers s'ils n'existent pas
                 if (!Directory.Exists(addinsPath))
                 {
                     Directory.CreateDirectory(addinsPath);
+                }
+                
+                if (!Directory.Exists(pluginsPath))
+                {
+                    Directory.CreateDirectory(pluginsPath);
                 }
 
                 // Créer un dossier temporaire pour extraire
@@ -284,35 +293,48 @@ namespace SpaceToWall.Installer
                     // Extraire le ZIP
                     ZipFile.ExtractToDirectory(tempZipPath, tempExtractPath);
 
-                    // Copier le fichier .addin
-                    string addinFile = Path.Combine(tempExtractPath, $"{ADDIN_NAME}.addin");
-                    if (File.Exists(addinFile))
+                    // 1. Copier les DLL et dépendances dans ApplicationPlugins
+                    if (Directory.Exists(pluginsPath))
                     {
-                        string destAddin = Path.Combine(addinsPath, $"{ADDIN_NAME}.addin");
-                        File.Copy(addinFile, destAddin, true);
-                    }
-                    else
-                    {
-                        throw new Exception($"Fichier .addin introuvable dans le ZIP");
+                        // Nettoyer l'ancienne version
+                        Directory.Delete(pluginsPath, true);
+                        Directory.CreateDirectory(pluginsPath);
                     }
 
-                    // Copier la DLL et ses dépendances dans un sous-dossier
-                    string targetFolder = Path.Combine(addinsPath, ADDIN_NAME);
-                    if (Directory.Exists(targetFolder))
-                    {
-                        Directory.Delete(targetFolder, true);
-                    }
-                    Directory.CreateDirectory(targetFolder);
-
-                    // Copier tous les fichiers .dll, .pdb, .config
                     var filesToCopy = Directory.GetFiles(tempExtractPath)
                         .Where(f => f.EndsWith(".dll") || f.EndsWith(".pdb") || f.EndsWith(".config"));
 
                     foreach (var file in filesToCopy)
                     {
                         string fileName = Path.GetFileName(file);
-                        string destFile = Path.Combine(targetFolder, fileName);
+                        string destFile = Path.Combine(pluginsPath, fileName);
                         File.Copy(file, destFile, true);
+                    }
+
+                    // 2. Copier et modifier le fichier .addin
+                    string addinTemplatePath = GetEmbeddedAddinTemplate();
+                    if (File.Exists(addinTemplatePath))
+                    {
+                        // Lire le contenu du template
+                        string addinContent = File.ReadAllText(addinTemplatePath);
+                        
+                        // Remplacer {VERSIONS} par la version réelle
+                        addinContent = addinContent.Replace("{VERSIONS}", version);
+                        
+                        // Écrire dans le dossier Addins
+                        string destAddinPath = Path.Combine(addinsPath, "SpaceToWall.addin");
+                        File.WriteAllText(destAddinPath, addinContent);
+                        
+                        // Nettoyer le template temporaire
+                        try
+                        {
+                            File.Delete(addinTemplatePath);
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        throw new Exception("Fichier .addin template introuvable dans les ressources embarquées");
                     }
                 }
                 finally
@@ -366,6 +388,32 @@ namespace SpaceToWall.Installer
             }
 
             return tempZipPath;
+        }
+
+        static string GetEmbeddedAddinTemplate()
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            var resourceName = assembly.GetManifestResourceNames()
+                .FirstOrDefault(r => r.Contains("SpaceToWall.addin"));
+
+            if (string.IsNullOrEmpty(resourceName))
+            {
+                throw new Exception("Fichier SpaceToWall.addin introuvable dans les ressources embarquees");
+            }
+
+            string tempAddinPath = Path.Combine(Path.GetTempPath(), $"SpaceToWall_{Guid.NewGuid()}.addin");
+
+            using (Stream resourceStream = assembly.GetManifestResourceStream(resourceName))
+            using (FileStream fileStream = File.Create(tempAddinPath))
+            {
+                if (resourceStream == null)
+                {
+                    throw new Exception($"Impossible de lire la ressource {resourceName}");
+                }
+                resourceStream.CopyTo(fileStream);
+            }
+
+            return tempAddinPath;
         }
     }
 }
