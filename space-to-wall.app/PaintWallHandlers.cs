@@ -157,14 +157,37 @@ namespace space_to_wall.app
                     try
                     {
                         Curve curve = segment.GetCurve();
+                        
+                        // Décaler la courbe de 2.5mm (moitié de l'épaisseur) vers l'intérieur de la pièce
+                        double offsetDistance = 2.5 / 304.8; // en pieds
+                        
+                        // Calculer la direction perpendiculaire vers l'intérieur (à gauche de la courbe)
+                        XYZ startPoint = curve.GetEndPoint(0);
+                        XYZ endPoint = curve.GetEndPoint(1);
+                        XYZ direction = (endPoint - startPoint).Normalize();
+                        XYZ normal = new XYZ(-direction.Y, direction.X, 0); // Perpendiculaire à gauche
+                        XYZ translation = normal * offsetDistance;
+                        
+                        // Créer une nouvelle courbe décalée
+                        Transform transform = Transform.CreateTranslation(translation);
+                        Curve offsetCurve = curve.CreateTransformed(transform);
+                        
                         double height = room.UnboundedHeight;
 
-                        // Créer le mur de peinture
-                        Wall paintWall = Wall.Create(doc, curve, paintWallType.Id,
+                        // Créer le mur de peinture avec la courbe décalée
+                        Wall paintWall = Wall.Create(doc, offsetCurve, paintWallType.Id,
                             level.Id, height, 0, false, false);
 
                         if (paintWall != null)
                         {
+                            // Définir la ligne de justification à "Nu fini: Extérieur"
+                            Parameter locationParam = paintWall.get_Parameter(BuiltInParameter.WALL_KEY_REF_PARAM);
+                            if (locationParam != null && !locationParam.IsReadOnly)
+                            {
+                                // WallLocationLine.FinishFaceExterior = 2
+                                locationParam.Set(2);
+                            }
+
                             // Affecter les paramètres
                             SetPaintWallParameters(paintWall, room);
                             wallCount++;
@@ -218,8 +241,12 @@ namespace space_to_wall.app
                 .Cast<WallType>()
                 .FirstOrDefault(wt => wt.Name == PAINT_WALL_TYPE_NAME);
 
+            // Si trouvé, vérifier et corriger la structure si nécessaire
             if (paintType != null)
+            {
+                UpdatePaintWallStructure(paintType);
                 return paintType;
+            }
 
             // Si pas trouvé, prendre un type basique et le dupliquer
             WallType baseType = new FilteredElementCollector(doc)
@@ -230,32 +257,47 @@ namespace space_to_wall.app
             if (baseType != null)
             {
                 paintType = baseType.Duplicate(PAINT_WALL_TYPE_NAME) as WallType;
-
-                // Modifier l'épaisseur à 5mm si possible
-                CompoundStructure structure = paintType.GetCompoundStructure();
-                if (structure != null)
-                {
-                    // Simplifier à une seule couche de 5mm
-                    IList<CompoundStructureLayer> layers = structure.GetLayers();
-
-                    // Supprimer toutes les couches sauf une
-                    for (int i = layers.Count - 1; i > 0; i--)
-                    {
-                        structure.DeleteLayer(i);
-                    }
-
-                    // Modifier l'épaisseur de la couche restante
-                    if (layers.Count > 0)
-                    {
-                        CompoundStructureLayer layer = layers[0];
-                        structure.SetLayerWidth(0, 5.0 / 304.8); // 5mm en pieds
-                    }
-
-                    paintType.SetCompoundStructure(structure);
-                }
+                UpdatePaintWallStructure(paintType);
             }
 
             return paintType;
+        }
+
+        private void UpdatePaintWallStructure(WallType paintType)
+        {
+            CompoundStructure structure = paintType.GetCompoundStructure();
+            if (structure == null || structure.LayerCount == 0)
+                return;
+
+            try
+            {
+                // Supprimer TOUTES les couches
+                while (structure.LayerCount > 1)
+                {
+                    structure.DeleteLayer(0);
+                }
+
+                // Obtenir un matériau par défaut (ou créer un matériau de finition)
+                ElementId materialId = ElementId.InvalidElementId;
+                
+                // Créer une nouvelle couche unique de 5mm
+                double layerWidth = 5.0 / 304.8; // 5mm en pieds
+                CompoundStructureLayer newLayer = new CompoundStructureLayer(
+                    layerWidth,
+                    MaterialFunctionAssignment.Structure, // Fonction de structure
+                    materialId);
+
+                // Ajouter la couche
+                structure.SetLayers(new List<CompoundStructureLayer> { newLayer });
+
+                // Appliquer la structure modifiée
+                paintType.SetCompoundStructure(structure);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Erreur lors de la modification de la structure du mur : {ex.Message}");
+            }
         }
     }
 

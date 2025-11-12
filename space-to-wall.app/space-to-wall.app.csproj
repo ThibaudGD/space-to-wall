@@ -15,7 +15,7 @@
 
   <!-- Target framework configuration based on Revit version -->
   <PropertyGroup>
-    <RevitVersion>2024</RevitVersion>
+    <RevitVersion>2023</RevitVersion>
     <TargetFramework Condition="'$(RevitVersion)' == '2023'">net48</TargetFramework>
     <TargetFramework Condition="'$(RevitVersion)' == '2024'">net48</TargetFramework>
     <TargetFramework Condition="'$(RevitVersion)' == '2025'">net8.0-windows</TargetFramework>
