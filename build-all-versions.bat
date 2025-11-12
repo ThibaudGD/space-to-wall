@@ -7,9 +7,19 @@ echo   Space to Wall - Build All Versions
 echo ============================================
 echo.
 
+REM Vérifier qu'on est dans le bon dossier
+if not exist "space-to-wall.app\space-to-wall.app.csproj" (
+    echo ERREUR: Script doit etre execute depuis la racine du projet
+    echo Dossier courant: %CD%
+    pause
+    exit /b 1
+)
+
 REM Nettoyer les anciens builds
+echo Nettoyage des anciens builds...
 if exist "build-output" rd /s /q "build-output"
 mkdir "build-output"
+echo.
 
 REM Versions à compiler
 set VERSIONS=2022 2023 2024
@@ -49,29 +59,32 @@ for %%V in (%VERSIONS%) do (
     set TEMP_DIR=build-output\temp_%%V
     mkdir "!TEMP_DIR!"
     
-    REM Dossier source des fichiers compilés
-    set SOURCE_DIR=%APPDATA%\Autodesk\Revit\Addins\%%V
+    REM Utiliser directement le dossier de build (bin\Release\net48)
+    set SOURCE_DIR=space-to-wall.app\bin\Release\net48
     
-    REM Vérifier si le dossier source existe
-    if not exist "!SOURCE_DIR!" (
-        echo   ATTENTION: Dossier !SOURCE_DIR! introuvable, utilisation du dossier bin
-        set SOURCE_DIR=space-to-wall.app\bin\Release\%%V
+    REM Vérifier si les fichiers existent
+    if not exist "!SOURCE_DIR!\space_to_wall.app.dll" (
+        echo   ERREUR: Fichiers compiles introuvables dans !SOURCE_DIR!
+        echo   Verifiez que la compilation a reussi
+        rd /s /q "!TEMP_DIR!"
+        cd ..
+        pause
+        exit /b 1
     )
     
     REM Copier uniquement les DLL et fichiers binaires (pas le .addin)
     REM Le .addin sera géré séparément par l'installateur
-    if exist "!SOURCE_DIR!\space_to_wall.app\" (
-        copy "!SOURCE_DIR!\space_to_wall.app\*.dll" "!TEMP_DIR!\" >nul 2>&1
-        copy "!SOURCE_DIR!\space_to_wall.app\*.pdb" "!TEMP_DIR!\" >nul 2>&1
-        copy "!SOURCE_DIR!\space_to_wall.app\*.config" "!TEMP_DIR!\" >nul 2>&1
-    )
+    echo   Copie des fichiers depuis !SOURCE_DIR!...
+    copy "!SOURCE_DIR!\*.dll" "!TEMP_DIR!\" >nul 2>&1
+    copy "!SOURCE_DIR!\*.pdb" "!TEMP_DIR!\" >nul 2>&1
+    copy "!SOURCE_DIR!\*.config" "!TEMP_DIR!\" >nul 2>&1
     
-    REM Si pas trouvé dans AppData, copier depuis bin
+    REM Vérifier que la DLL principale a été copiée
     if not exist "!TEMP_DIR!\space_to_wall.app.dll" (
-        echo   Copie depuis bin\Release\net48...
-        copy "space-to-wall.app\bin\Release\net48\*.dll" "!TEMP_DIR!\" >nul 2>&1
-        copy "space-to-wall.app\bin\Release\net48\*.pdb" "!TEMP_DIR!\" >nul 2>&1
-        copy "space-to-wall.app\bin\Release\net48\*.config" "!TEMP_DIR!\" >nul 2>&1
+        echo   ERREUR: Impossible de copier space_to_wall.app.dll
+        rd /s /q "!TEMP_DIR!"
+        pause
+        exit /b 1
     )
     
     REM Créer le ZIP
@@ -95,7 +108,7 @@ copy "build-output\space_to_wall.app_*.zip" "space-to-wall.installer\Resources\"
 
 REM Compiler l'installateur
 cd space-to-wall.installer
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ..\build-output\installer
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ..\build-output\installer >nul 2>&1
 cd ..
 
 if %ERRORLEVEL% neq 0 (
@@ -104,18 +117,78 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+echo   [OK] Installateur compile
+
+REM Créer un README dans build-output
+echo Creation du fichier README dans build-output...
+(
+echo # Space to Wall - Build Output
+echo.
+echo Ce dossier contient les fichiers generes par le script build-all-versions.bat
+echo.
+echo ## Fichiers
+echo.
+echo ### ZIP des versions Revit
+echo - space_to_wall.app_2022.zip
+echo - space_to_wall.app_2023.zip  
+echo - space_to_wall.app_2024.zip
+echo.
+echo Ces fichiers contiennent uniquement les DLL et dependances.
+echo Le fichier .addin est gere separement par l'installateur.
+echo.
+echo ### Installateur autonome
+echo - installer\space-to-wall.installer.exe
+echo.
+echo Cet executable contient:
+echo - Tous les ZIP embarques
+echo - Le template SpaceToWall.addin
+echo - Detection automatique des versions Revit
+echo - Installation dans ApplicationPlugins
+echo.
+echo ## Distribution
+echo.
+echo Pour distribuer aux utilisateurs:
+echo 1. Donnez uniquement: installer\space-to-wall.installer.exe
+echo 2. L'utilisateur double-clique dessus
+echo 3. L'installateur gere tout automatiquement
+echo.
+echo ## Structure d'installation
+echo.
+echo L'installateur cree cette structure:
+echo.
+echo %%AppData%%\Autodesk\Revit\Addins\{version}\
+echo   SpaceToWall.addin
+echo.
+echo %%AppData%%\Autodesk\ApplicationPlugins\SpaceToWall\{version}\
+echo   space_to_wall.app.dll
+echo   Revit.Async.dll
+echo   ^(autres dependances^)
+) > build-output\README.txt
+
 echo.
 echo ============================================
 echo Build termine avec succes !
 echo ============================================
 echo.
 echo Fichiers crees:
-echo   build-output\space_to_wall.app_2022.zip
-echo   build-output\space_to_wall.app_2023.zip
-echo   build-output\space_to_wall.app_2024.zip
-echo   build-output\installer\space-to-wall.installer.exe
-echo.
-echo L'installateur contient tous les ZIP embarques.
-echo Distribuez uniquement: space-to-wall.installer.exe
+dir build-output\*.zip /B 2>nul
+if exist "build-output\installer\space-to-wall.installer.exe" (
+    echo.
+    echo Installateur autonome:
+    echo   build-output\installer\space-to-wall.installer.exe
+    echo.
+    echo L'installateur contient:
+    echo   - Tous les ZIP des versions Revit ^(2022, 2023, 2024^)
+    echo   - Le template SpaceToWall.addin
+    echo   - Detection automatique des versions Revit installees
+    echo.
+    echo Distribution:
+    echo   Distribuez uniquement: build-output\installer\space-to-wall.installer.exe
+    echo   Taille du fichier: 
+    for %%F in ("build-output\installer\space-to-wall.installer.exe") do echo   %%~zF octets ^(~%%~zFKb^)
+) else (
+    echo.
+    echo ATTENTION: L'installateur n'a pas ete cree correctement
+)
 echo.
 pause
